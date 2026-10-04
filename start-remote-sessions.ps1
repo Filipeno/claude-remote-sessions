@@ -53,21 +53,11 @@ function Start-Server($dir, [string[]]$extra) {
 
 foreach ($dir in Get-Folders) {
     if (-not (Test-Path -LiteralPath $dir)) { Log "Missing folder: $dir"; continue }
-    if ((Get-ServerState $dir) -eq 'alive') {
-        Save-Pointer $dir
-        if (-not $Watchdog) { Write-Host "Already running: $dir" }
-        continue
-    }
+    if ((Get-ServerState $dir) -eq 'alive') { if (-not $Watchdog) { Write-Host "Already running: $dir" }; continue }
 
-    # Reattach to the last session so the app doesn't get a new duplicate entry; start a new one only if that fails.
-    $reattached = (Restore-Pointer $dir) -and (Start-Server $dir @('--continue'))
-    if (-not $reattached) {
-        # The old session is gone (e.g. deleted in the app): forget it, and give the server side a moment to release the folder.
-        Remove-Item -LiteralPath (Get-PointerPath $dir), (Get-SavedPointerPath $dir) -ErrorAction SilentlyContinue
-        Start-Sleep 5
-    }
-    if ($reattached) { Log "Reattached: $dir" }
-    elseif ((Start-Server $dir @()) -or (Start-Sleep 20) -or (Start-Server $dir @())) { Log "Started new session: $dir" }
-    else { Log "FAILED: $dir. Is the folder trusted, and are you logged in? Use 'Add a folder' in the menu to fix trust."; continue }
-    Save-Pointer $dir
+    # Always a fresh server: `--continue` would reattach the old chat, but in "Single session" mode (one chat, no new
+    # ones). A fresh server allows many chats, at the cost of a new sidebar section after each restart.
+    # The retry covers the server side still holding the folder for a few seconds after the old server died.
+    if ((Start-Server $dir @()) -or (Start-Sleep 20) -or (Start-Server $dir @())) { Log "Started: $dir" }
+    else { Log "FAILED: $dir. Is the folder trusted, and are you logged in? Use 'Add a folder' in the menu to fix trust." }
 }

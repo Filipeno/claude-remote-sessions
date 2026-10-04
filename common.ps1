@@ -3,9 +3,7 @@ $Root = $PSScriptRoot
 $ListFile = Join-Path $Root 'sessions.txt'
 $SettingsFile = Join-Path $Root 'settings.psd1'
 $LogFile = Join-Path $Root 'remote-sessions.log'
-$PauseFlag = Join-Path $Root 'paused.flag'
-$StateDir = Join-Path $Root 'state'
-$TaskName = 'Claude Remote Sessions'
+$PauseFlag = Join-Path $Root 'paused.flag'$TaskName = 'Claude Remote Sessions'
 $RepoZip = 'https://github.com/Filipeno/claude-remote-sessions/archive/refs/heads/main.zip'
 $Utf8 = New-Object Text.UTF8Encoding $false
 
@@ -63,30 +61,9 @@ function Get-RcProcesses {
     }
 }
 
-# Each server records its session and pid in ~/.claude/projects/<folder>/bridge-pointer.json.
-# `--continue` reattaches to that session, but only if the file is less than ~4 hours old (by its modified time);
-# an older one is deleted. Overnight sleep kills the servers, so state\ keeps a copy to restore it from.
+# Each server records its pid in ~/.claude/projects/<folder>/bridge-pointer.json.
 function Get-PointerPath($dir) {
     Join-Path $env:USERPROFILE ('.claude\projects\' + ($dir.TrimEnd('\') -replace '[^A-Za-z0-9]', '-') + '\bridge-pointer.json')
-}
-function Get-SavedPointerPath($dir) { Join-Path $StateDir ((Split-Path (Split-Path (Get-PointerPath $dir)) -Leaf) + '.json') }
-
-function Save-Pointer($dir) {
-    $pointer = Get-PointerPath $dir
-    if (-not (Test-Path -LiteralPath $pointer)) { return }
-    New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
-    Copy-Item -LiteralPath $pointer -Destination (Get-SavedPointerPath $dir) -Force
-}
-
-# Makes the last session reattachable: refreshes the pointer's age, or restores it from state\. False if there is none.
-function Restore-Pointer($dir) {
-    $pointer = Get-PointerPath $dir
-    $saved = Get-SavedPointerPath $dir
-    if (Test-Path -LiteralPath $pointer) { (Get-Item -LiteralPath $pointer).LastWriteTime = Get-Date; return $true }
-    if (-not (Test-Path -LiteralPath $saved)) { return $false }
-    New-Item -ItemType Directory -Force -Path (Split-Path $pointer) | Out-Null
-    [IO.File]::WriteAllText($pointer, [IO.File]::ReadAllText($saved, $Utf8), $Utf8)
-    return $true
 }
 
 # Returns alive, dead or none.
