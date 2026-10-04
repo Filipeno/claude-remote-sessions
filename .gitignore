@@ -3,3 +3,4 @@ sessions.txt
 settings.psd1
 remote-sessions.log
 paused.flag
+state/

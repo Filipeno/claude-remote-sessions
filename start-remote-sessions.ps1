@@ -53,10 +53,15 @@ function Start-Server($dir, [string[]]$extra) {
 
 foreach ($dir in Get-Folders) {
     if (-not (Test-Path -LiteralPath $dir)) { Log "Missing folder: $dir"; continue }
-    $state = Get-ServerState $dir
-    if ($state -eq 'alive') { if (-not $Watchdog) { Write-Host "Already running: $dir" }; continue }
+    if ((Get-ServerState $dir) -eq 'alive') {
+        Save-Pointer $dir
+        if (-not $Watchdog) { Write-Host "Already running: $dir" }
+        continue
+    }
 
-    if ($state -eq 'dead' -and (Start-Server $dir @('--continue'))) { Log "Reattached: $dir"; continue }
-    if (Start-Server $dir @()) { Log "Started: $dir" }
-    else { Log "FAILED: $dir. Is the folder trusted, and are you logged in? Use 'Add a folder' in the menu to fix trust." }
+    # Reattach to the last session so the app doesn't get a new duplicate entry; start a new one only if that fails.
+    if ((Restore-Pointer $dir) -and (Start-Server $dir @('--continue'))) { Log "Reattached: $dir" }
+    elseif (Start-Server $dir @()) { Log "Started new session: $dir" }
+    else { Log "FAILED: $dir. Is the folder trusted, and are you logged in? Use 'Add a folder' in the menu to fix trust."; continue }
+    Save-Pointer $dir
 }
