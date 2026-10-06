@@ -3,7 +3,8 @@ $Root = $PSScriptRoot
 $ListFile = Join-Path $Root 'sessions.txt'
 $SettingsFile = Join-Path $Root 'settings.psd1'
 $LogFile = Join-Path $Root 'remote-sessions.log'
-$PauseFlag = Join-Path $Root 'paused.flag'$TaskName = 'Claude Remote Sessions'
+$PauseFlag = Join-Path $Root 'paused.flag'
+$TaskName = 'Claude Remote Sessions'
 $RepoZip = 'https://github.com/Filipeno/claude-remote-sessions/archive/refs/heads/main.zip'
 $Utf8 = New-Object Text.UTF8Encoding $false
 
