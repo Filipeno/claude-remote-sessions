@@ -45,19 +45,28 @@ foreach ($dir in Get-TrustedFolders) {
 
 $chromeArg = switch ((Get-Settings).Chrome) { 'on' { @('--chrome') } 'off' { @('--no-chrome') } default { @() } }
 
-function Start-Server($dir, [string[]]$extra) {
-    $p = Start-Process $claude -WorkingDirectory $dir -WindowStyle Hidden -PassThru `
-        -ArgumentList (@('remote-control') + $chromeArg + $extra)
-    return -not $p.WaitForExit(15000)
+function Start-Server($dir) {
+    Start-Process $claude -WorkingDirectory $dir -WindowStyle Hidden -PassThru -ArgumentList (@('remote-control') + $chromeArg)
 }
 
+# Always a fresh server: `--continue` would reattach the old chat, but in "Single session" mode (one chat, no new
+# ones). A fresh server allows many chats, at the cost of a new sidebar section after each restart.
+# All folders start at once; a server still running after 15 s counts as started. Failed ones get one retry
+# after 20 s, which covers the server side still holding the folder briefly after the old server died.
+$pending = @{}
 foreach ($dir in Get-Folders) {
     if (-not (Test-Path -LiteralPath $dir)) { Log "Missing folder: $dir"; continue }
     if ((Get-ServerState $dir) -eq 'alive') { if (-not $Watchdog) { Write-Host "Already running: $dir" }; continue }
-
-    # Always a fresh server: `--continue` would reattach the old chat, but in "Single session" mode (one chat, no new
-    # ones). A fresh server allows many chats, at the cost of a new sidebar section after each restart.
-    # The retry covers the server side still holding the folder for a few seconds after the old server died.
-    if ((Start-Server $dir @()) -or (Start-Sleep 20) -or (Start-Server $dir @())) { Log "Started: $dir" }
-    else { Log "FAILED: $dir. Is the folder trusted, and are you logged in? Use 'Add a folder' in the menu to fix trust." }
+    $pending[$dir] = Start-Server $dir
+}
+for ($attempt = 1; $pending.Count -and $attempt -le 2; $attempt++) {
+    Start-Sleep 15
+    foreach ($dir in @($pending.Keys)) {
+        if (-not $pending[$dir].HasExited) { Log "Started: $dir"; $pending.Remove($dir) }
+        elseif ($attempt -eq 2) { Log "FAILED: $dir. Is the folder trusted, and are you logged in? Use 'Add a folder' in the menu to fix trust." }
+    }
+    if ($attempt -eq 1 -and $pending.Count) {
+        Start-Sleep 5
+        foreach ($dir in @($pending.Keys)) { $pending[$dir] = Start-Server $dir }
+    }
 }
