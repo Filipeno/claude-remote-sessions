@@ -39,6 +39,15 @@ function Find-Claude {
     return $null
 }
 
+# False only when Claude Code reports that it is signed out. If the check itself fails, assume logged in.
+function Test-ClaudeLoggedIn {
+    try {
+        $out = & (Find-Claude) auth status 2>$null | Out-String
+        $status = $out | ConvertFrom-Json
+        return $status.loggedIn -ne $false
+    } catch { return $true }
+}
+
 function Get-Folders {
     [IO.File]::ReadAllLines($ListFile, $Utf8) | ForEach-Object { $_.Trim() } | Where-Object { $_ -and -not $_.StartsWith('#') }
 }

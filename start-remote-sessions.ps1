@@ -54,9 +54,22 @@ function Start-Server($dir) {
 # All folders start at once; a server still running after 15 s counts as started. Failed ones get one retry
 # after 20 s, which covers the server side still holding the folder briefly after the old server died.
 $pending = @{}
+$loginChecked = $false
 foreach ($dir in Get-Folders) {
     if (-not (Test-Path -LiteralPath $dir)) { Log "Missing folder: $dir"; continue }
     if ((Get-ServerState $dir) -eq 'alive') { if (-not $Watchdog) { Write-Host "Already running: $dir" }; continue }
+
+    # Nothing can start while Claude Code is logged out, and every folder would report a misleading "FAILED".
+    # Check once, only when something has to start, and log the problem once instead of every 15 minutes.
+    if (-not $loginChecked) {
+        $loginChecked = $true
+        if (-not (Test-ClaudeLoggedIn)) {
+            $msg = 'NOT LOGGED IN: Claude Code is signed out, so no sessions can start. Open PowerShell, run: claude auth login'
+            $last = if (Test-Path -LiteralPath $LogFile) { Get-Content -LiteralPath $LogFile -Tail 1 -Encoding UTF8 } else { '' }
+            if ($last -notlike "*$msg") { Log $msg } else { Write-Host $msg }
+            exit 1
+        }
+    }
     $pending[$dir] = Start-Server $dir
 }
 for ($attempt = 1; $pending.Count -and $attempt -le 2; $attempt++) {
